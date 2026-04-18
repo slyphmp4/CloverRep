@@ -1,0 +1,45 @@
+plugins {
+    id 'java'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
+}
+
+group = 'com.slyph'
+version = '1.6.0'
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://repo.papermc.io/repository/maven-public/' }
+    maven { url = 'https://repo.extendedclip.com/content/repositories/placeholderapi/' }
+}
+
+dependencies {
+    compileOnly 'com.destroystokyo.paper:paper-api:1.16.5-R0.1-SNAPSHOT'
+    compileOnly 'me.clip:placeholderapi:2.11.6'
+    implementation 'com.zaxxer:HikariCP:5.1.0'
+    implementation 'com.mysql:mysql-connector-j:8.4.0'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+
+tasks.processResources {
+    filteringCharset = 'UTF-8'
+}
+
+tasks.shadowJar {
+    archiveClassifier.set('')
+}
+
+tasks.build {
+    dependsOn tasks.shadowJar
+}

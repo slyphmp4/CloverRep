@@ -1,34 +1,39 @@
+# CloverRep configuration file
+#
+# Основной принцип:
+# - config.yml отвечает за технические настройки и отображение
+# - messages.yml отвечает только за текст сообщений
+#
+# Поддержка HEX-цветов:
+# - формат "&FF0000" (рекомендуется)
+# - формат "&#FF0000" (тоже поддерживается)
+
 colors:
-  reputation-positive: "&#46ff62" # Цвет для положительной репутации (зелёный)
-  reputation-negative: "&#ff4646" # Цвет для отрицательной репутации (красный)
-  reputation-neutral: "&#898989"  # Цвет для нулевой репутации (серый)
-  dark-nick: "DARK_GRAY"          # Цвет ника для игроков с репутацией -20 и ниже
+  reputation-positive: "&21FF5D"
+  reputation-negative: "&FF2B2B"
+  reputation-neutral: "&BFBFBF"
+  dark-nick: "DARK_GRAY"
 
-messages:
-  self-vote-error:
-    - "&cВы не можете выдавать репутацию самому себе!"
-    - "&7Попробуйте оценить другого игрока."
+reputation:
+  dark-nick-threshold: -20
 
-  already-voted:
-    - "&cВы уже оценили этого игрока!"
-    - "&7Вы можете поставить репутацию только один раз."
-
-  success:
-    - "&aВы успешно изменили репутацию игрока!"
-    - "&7Спасибо за ваш вклад в сообщество!"
-
-  error:
-    - "&cИгрок не найден!"
-    - "&7Убедитесь, что имя написано правильно."
-
-  usage:
-    - "&cИспользуйте: /rep + <ник> или /rep - <ник>"
+display:
+  below-name:
+    enabled: false
+    objective-id: "cloverrep"
+    title: "&eРеп"
+    force-slot: false
 
 sounds:
-  error: "ENTITY_VILLAGER_NO" # Звук ошибки
+  error: "ENTITY_VILLAGER_NO"
 
 storage:
-  type: "local" # "local" или "mysql"
+  # local - данные в plugins/CloverRep/reputation.yml
+  # mysql - данные в MySQL
+  type: "local"
+
+  # 20 тиков = 1 секунда
+  auto-save-ticks: 600
 
 mysql:
   host: "localhost"
@@ -38,4 +43,15 @@ mysql:
   password: "password"
   tablePrefix: "clover_"
 
-# .
+  # Пул соединений HikariCP
+  # maximum-size: максимальное количество соединений
+  # minimum-idle: минимальное число простаивающих соединений
+  # connection-timeout-millis: сколько ждать свободное соединение
+  # idle-timeout-millis: когда закрывать простаивающее соединение
+  # max-lifetime-millis: максимальное время жизни соединения
+  pool:
+    maximum-size: 10
+    minimum-idle: 2
+    connection-timeout-millis: 5000
+    idle-timeout-millis: 300000
+    max-lifetime-millis: 1800000

@@ -1,0 +1,10 @@
+# CloverRep local storage
+
+meta:
+  data-version: 3
+
+players: {}
+
+names: {}
+
+votes: {}

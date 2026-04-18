@@ -1,16 +1,39 @@
 name: CloverRep
-main: com.fread.cloverrep.Main
-version: 1.0
+main: com.slyph.cloverrep.CloverRepPlugin
+version: 1.6.0
 api-version: 1.16
-author: fread
-description: Плагин для управления репутацией игроков.
+authors: [slyph]
+description: Reputation plugin with safe display and storage handling.
+softdepend: [PlaceholderAPI]
 
 commands:
   rep:
-    description: Изменить репутацию игрока.
-    usage: "/rep + <ник> или /rep - <ник>"
+    description: Change player reputation.
+    usage: "/rep <+|-> <player>"
+  cloverrep:
+    description: Main CloverRep command.
+    usage: "/cloverrep <reload|status|checkdb|backup>"
+    aliases: [cr]
 
 permissions:
-  cloverrep_bypass:
-    description: Позволяет обходить ограничения на выдачу репутации.
+  cloverrep.rep.plus:
+    description: Allows giving positive reputation.
+    default: true
+  cloverrep.rep.minus:
+    description: Allows giving negative reputation.
+    default: true
+  cloverrep.rep.bypass:
+    description: Allows bypassing vote limit.
+    default: op
+  cloverrep.admin.reload:
+    description: Allows reloading CloverRep configuration.
+    default: op
+  cloverrep.admin.status:
+    description: Allows viewing CloverRep runtime status.
+    default: op
+  cloverrep.admin.checkdb:
+    description: Allows checking CloverRep database health.
+    default: op
+  cloverrep.admin.backup:
+    description: Allows creating CloverRep backup.
     default: op

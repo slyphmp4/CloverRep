@@ -1,0 +1,99 @@
+# CloverRep messages file
+
+messages:
+  player-only:
+    - "&7"
+    - "&cЭта команда доступна только игрокам."
+    - "&7"
+
+  no-permission:
+    - '&7'
+    - '&#c72b2b ❌  &#ff9089|  &#ff5a5aУ вас нет прав для использования этой команды!'
+    - '&7'
+
+  self-vote-error:
+    - '&7'
+    - '&#c72b2b ❌  &#ff9089|  &#ff5a5aВы не можете изменять репутацию самому себе'
+    - '&7'
+
+  already-voted:
+    - '&7'
+    - '&#c72b2b ❌  &#ff9089|  &#ff5a5aВы уже изменяли репутацию этого игрока'
+    - '&7'
+
+  storage-error:
+    - '&7'
+    - '&#c72b2b ❌  &#ff9089|  &#ff5a5aХранилище данных временно недоступно'
+    - '&7'
+
+  success:
+    - '&7'
+    - '&#86e96e ✔  &#6dbf58|  &#86e96eРепутация игрока &l%target% &#86e96eуспешно изменена. Сейчас: &l%reputation%'
+    - '&7'
+
+  error:
+    - '&7'
+    - '&#c72b2b ❌  &#ff9089|  &#ff5a5aИгрок не найден'
+    - '&7'
+
+  usage:
+    - '&7'
+    - '&#E9C66E ⓪  &#C2A65E|  &#E9C66EИспользование: /rep &#FFC942(&l+ &#FFC942/ &#FFC942&l-&#FFC942) &#FFC942(ник игрока)'
+    - '&7'
+  reload-usage:
+    - '&7'
+    - '&#E9C66E ⓪  &#C2A65E|  &#E9C66EИспользование: &#FFCE4D/cloverrep &#FFC72Ereload'
+    - '&7'
+
+  reload-success:
+    - '&7'
+    - '&#86e96e ✔  &#6dbf58|  &#86e96e&lCloverRep &#86e96eуспешно перезагружен!'
+    - '&7'
+
+  reload-storage-notice:
+    - '&7'
+    - '&#6EE9E5 🔔  &#58B1BF|  &#6EE9E5Изменение storage.type вступит в силу после перезапуска сервера'
+    - '&7'
+
+  status:
+    - "&7"
+    - "  &#FFCB5C&m            &m&#FFAE00 ꜱᴛᴀᴛᴜꜱ &#FFCB5C&m            &m"
+    - "&7"
+    - "&#FFE8B8 ▪ Тип хранилища: &l%backend%"
+    - "&#FFDA8A ▪ Доступность хранилища: &l%available%"
+    - "&#F5C869 ▪ Ожидают сохранения: &l%dirty%"
+    - "&#F5C55F ▪ Кэш репутаций: &l%cache_reputations%"
+    - "&#F5C151 ▪ Кэш голосов: &l%cache_votes%"
+    - "&7"
+
+  checkdb-unsupported:
+    - '&7'
+    - '&#E9AE6E ✎  &#BF9258|  &#E9AE6EКоманда доступна &lтолько &#E9AE6Eесли у вас &lхранилище данных MySQL'
+    - '&7'
+
+  checkdb-success:
+    - "&7"
+    - "  &#FFCB5C&m            &m &#14FF3A ᴍʏꜱǫʟ &#5CFF6A&m            &m"
+    - "&7"
+    - "&#B8FFC0 ▪ Пинг: &l%latency%ms"
+    - "&#9EFFA8 ▪ Игроки: &l%players%"
+    - "&#75FF83 ▪ Голоса: &l%votes%"
+    - "&7"
+
+  checkdb-error:
+    - '&7'
+    - '&#c72b2b ❌  &#ff9089|  &#ff5a5aОшибка проверки MySQL: %error%'
+    - '&7'
+
+  backup-success:
+    - '&7'
+    - '&#86e96e ✔  &#6dbf58|  &#86e96eРезервная копия создана:'
+    - '&#CCFFBF ▪ &#DBFFD1%file%'
+    - '&7'
+
+  backup-error:
+    - '&7'
+    - '&#c72b2b ❌  &#ff9089|  &#ff5a5aНе удалось создать резервную копию: %error%'
+    - '&7'
+
+  reputation-suffix: " [&f%reputation%&r]"
