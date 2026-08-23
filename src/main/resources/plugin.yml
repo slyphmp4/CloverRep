@@ -1,9 +1,9 @@
 name: CloverRep
 main: com.slyph.cloverrep.CloverRepPlugin
-version: 1.6.0
-api-version: 1.16
+version: '${version}'
+api-version: '26.2'
 authors: [slyph]
-description: Reputation plugin with safe display and storage handling.
+description: Reputation plugin for Paper 26.2 with safe display and storage handling.
 softdepend: [PlaceholderAPI]
 
 commands:

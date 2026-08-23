@@ -11,6 +11,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.scoreboard.DisplaySlot;
+import org.bukkit.scoreboard.Criteria;
 import org.bukkit.scoreboard.Objective;
 import org.bukkit.scoreboard.Scoreboard;
 
@@ -101,8 +102,12 @@ public final class ReputationManager {
         if (player == null || player.getUniqueId() == null || player.getName() == null || player.getName().isBlank()) {
             return;
         }
-        cacheIdentity(player.getUniqueId(), player.getName());
-        storage.upsertPlayerIdentity(player.getUniqueId(), player.getName());
+        if (cacheIdentity(player.getUniqueId(), player.getName())) {
+            storage.upsertPlayerIdentity(player.getUniqueId(), player.getName());
+            synchronized (cacheLock) {
+                dirty = true;
+            }
+        }
     }
 
     public boolean canVote(Player voter, Player target) {
@@ -207,6 +212,7 @@ public final class ReputationManager {
     }
 
     public StorageBackupResult createBackup() {
+        saveAllData();
         File backupDirectory = new File(plugin.getDataFolder(), "backups");
         return storage.createBackup(backupDirectory);
     }
@@ -366,15 +372,18 @@ public final class ReputationManager {
         return "";
     }
 
-    private void cacheIdentity(UUID playerId, String playerName) {
+    private boolean cacheIdentity(UUID playerId, String playerName) {
         if (playerId == null || playerName == null || playerName.isBlank()) {
-            return;
+            return false;
         }
 
         String normalized = normalizeName(playerName);
         synchronized (cacheLock) {
+            boolean changed = !playerId.equals(nameToUuidCache.get(normalized))
+                    || !playerName.equals(uuidToNameCache.get(playerId));
             nameToUuidCache.put(normalized, playerId);
             uuidToNameCache.put(playerId, playerName);
+            return changed;
         }
     }
 
@@ -400,10 +409,10 @@ public final class ReputationManager {
         String objectiveId = sanitizeObjectiveId(plugin.getConfigManager().getBelowNameObjectiveId());
         Objective objective = scoreboard.getObjective(objectiveId);
         if (objective == null) {
-            objective = scoreboard.registerNewObjective(objectiveId, "dummy");
+            objective = scoreboard.registerNewObjective(objectiveId, Criteria.DUMMY, ColorUtil.toComponent(plugin.getConfigManager().getBelowNameTitle()));
+        } else {
+            objective.displayName(ColorUtil.toComponent(plugin.getConfigManager().getBelowNameTitle()));
         }
-
-        objective.setDisplayName(ColorUtil.applyColor(plugin.getConfigManager().getBelowNameTitle()));
 
         Objective currentBelow = scoreboard.getObjective(DisplaySlot.BELOW_NAME);
         if (currentBelow == null || currentBelow.getName().equals(objective.getName()) || plugin.getConfigManager().isBelowNameForceSlot()) {
