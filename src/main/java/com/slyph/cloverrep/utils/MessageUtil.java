@@ -7,10 +7,9 @@ public final class MessageUtil {
     }
 
     public static void send(CommandSender sender, String message) {
-        String colored = ColorUtil.applyColor(message);
-        String[] lines = colored.split("\\n");
+        String[] lines = message.split("\\n");
         for (String line : lines) {
-            sender.sendMessage(line);
+            sender.sendMessage(ColorUtil.toComponent(line));
         }
     }
 }

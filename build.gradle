@@ -1,10 +1,11 @@
 plugins {
     id 'java'
-    id 'com.github.johnrengelman.shadow' version '8.1.1'
+    id 'com.gradleup.shadow' version '9.6.1'
 }
 
 group = 'com.slyph'
-version = '1.6.0'
+version = '1.7.0'
+def pluginVersion = version.toString()
 
 repositories {
     mavenCentral()
@@ -13,31 +14,48 @@ repositories {
 }
 
 dependencies {
-    compileOnly 'com.destroystokyo.paper:paper-api:1.16.5-R0.1-SNAPSHOT'
-    compileOnly 'me.clip:placeholderapi:2.11.6'
-    implementation 'com.zaxxer:HikariCP:5.1.0'
-    implementation 'com.mysql:mysql-connector-j:8.4.0'
+    compileOnly 'io.papermc.paper:paper-api:26.2.build.116-stable'
+    compileOnly 'me.clip:placeholderapi:2.12.3'
+
+    implementation('com.zaxxer:HikariCP:7.1.0') {
+        exclude group: 'org.slf4j', module: 'slf4j-api'
+    }
+    implementation 'com.mysql:mysql-connector-j:26.7.0'
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
     toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
+        languageVersion = JavaLanguageVersion.of(25)
     }
 }
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
-    options.release = 21
+    options.release = 25
+    options.compilerArgs += ['-Xlint:deprecation', '-Xlint:unchecked']
 }
 
 tasks.processResources {
     filteringCharset = 'UTF-8'
+    filesMatching('plugin.yml') {
+        expand(version: pluginVersion)
+    }
 }
 
 tasks.shadowJar {
     archiveClassifier.set('')
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    mergeServiceFiles()
+    relocate 'com.zaxxer.hikari', 'com.slyph.cloverrep.libs.hikari'
+    relocate 'com.mysql', 'com.slyph.cloverrep.libs.mysql'
+    relocate 'com.google.protobuf', 'com.slyph.cloverrep.libs.protobuf'
+}
+
+tasks.withType(AbstractArchiveTask).configureEach {
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
 }
 
 tasks.build {

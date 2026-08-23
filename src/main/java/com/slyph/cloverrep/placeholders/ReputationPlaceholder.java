@@ -4,12 +4,10 @@ import com.slyph.cloverrep.CloverRepPlugin;
 import com.slyph.cloverrep.config.ConfigManager;
 import com.slyph.cloverrep.utils.ColorUtil;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
-import org.bukkit.ChatColor;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Locale;
 import java.util.UUID;
 
 public final class ReputationPlaceholder extends PlaceholderExpansion {
@@ -45,7 +43,7 @@ public final class ReputationPlaceholder extends PlaceholderExpansion {
 
     @Override
     public @NotNull String getVersion() {
-        return plugin.getDescription().getVersion();
+        return plugin.getPluginMeta().getVersion();
     }
 
     @Override
@@ -248,26 +246,11 @@ public final class ReputationPlaceholder extends PlaceholderExpansion {
 
     private String resolveNickColorCode(int reputation) {
         if (!isDarkNick(reputation)) {
-            return ChatColor.RESET.toString();
+            return "\u00A7r";
         }
 
         String raw = plugin.getConfigManager().getDarkNickColor();
-        if (raw == null || raw.isBlank()) {
-            return ChatColor.DARK_GRAY.toString();
-        }
-
-        String trimmed = raw.trim();
-
-        try {
-            return ChatColor.valueOf(trimmed.toUpperCase(Locale.ROOT)).toString();
-        } catch (IllegalArgumentException ignored) {
-            String candidate = trimmed.startsWith("&") || trimmed.startsWith("\u00A7") ? trimmed : "&" + trimmed;
-            String colored = ColorUtil.applyColor(candidate);
-            if (colored.equals(candidate)) {
-                return ChatColor.DARK_GRAY.toString();
-            }
-            return colored;
-        }
+        return ColorUtil.resolveColorCode(raw, "\u00A78");
     }
 
     private boolean startsWithIgnoreCase(String source, String prefix) {

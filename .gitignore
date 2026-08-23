@@ -19,6 +19,7 @@ out/
 
 # Package Files #
 *.jar
+!gradle/wrapper/gradle-wrapper.jar
 *.war
 *.nar
 *.ear
@@ -115,4 +116,5 @@ run/
 # Gradle
 .gradle/
 build/
+bin/
 
