@@ -14,7 +14,7 @@ public final class PlayerJoinListener implements Listener {
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
-        plugin.getReputationManager().registerPlayerIdentity(event.getPlayer());
-        plugin.getReputationManager().updatePlayerDisplay(event.getPlayer());
+        plugin.getReputationManager().loadPlayer(event.getPlayer()).thenRun(() ->
+                plugin.runOnMainThread(() -> plugin.getReputationManager().updatePlayerDisplay(event.getPlayer())));
     }
 }

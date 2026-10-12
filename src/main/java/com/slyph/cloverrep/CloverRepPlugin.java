@@ -9,7 +9,9 @@ import com.slyph.cloverrep.listeners.PlayerJoinListener;
 import com.slyph.cloverrep.managers.ReputationManager;
 import com.slyph.cloverrep.placeholders.ReputationPlaceholder;
 import org.bukkit.command.PluginCommand;
+import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.plugin.IllegalPluginAccessException;
 import org.bukkit.scheduler.BukkitTask;
 
 public final class CloverRepPlugin extends JavaPlugin {
@@ -17,9 +19,12 @@ public final class CloverRepPlugin extends JavaPlugin {
     private ConfigManager configManager;
     private ReputationManager reputationManager;
     private BukkitTask autoSaveTask;
+    private ReputationPlaceholder placeholder;
+    private volatile boolean shuttingDown;
 
     @Override
     public void onEnable() {
+        shuttingDown = false;
         instance = this;
         configManager = new ConfigManager(this);
         reputationManager = new ReputationManager(this);
@@ -48,7 +53,8 @@ public final class CloverRepPlugin extends JavaPlugin {
         reputationManager.updateAllOnlinePlayers();
 
         if (getServer().getPluginManager().isPluginEnabled("PlaceholderAPI")) {
-            new ReputationPlaceholder(this).register();
+            placeholder = new ReputationPlaceholder(this);
+            placeholder.register();
         }
 
         startAutoSaveTask();
@@ -56,10 +62,36 @@ public final class CloverRepPlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        shuttingDown = true;
         stopAutoSaveTask();
+
+        if (placeholder != null) {
+            placeholder.unregister();
+            placeholder = null;
+        }
 
         if (reputationManager != null) {
             reputationManager.shutdown();
+        }
+        instance = null;
+    }
+
+    public void runOnMainThread(Runnable action) {
+        if (shuttingDown || !isEnabled()) {
+            return;
+        }
+        if (Bukkit.isPrimaryThread()) {
+            action.run();
+            return;
+        }
+        try {
+            getServer().getScheduler().runTask(this, () -> {
+                if (!shuttingDown && isEnabled()) {
+                    action.run();
+                }
+            });
+        } catch (IllegalPluginAccessException ignored) {
+            // The server may disable the plugin between completion and scheduling.
         }
     }
 

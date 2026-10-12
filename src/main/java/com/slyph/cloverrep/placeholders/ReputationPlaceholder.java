@@ -161,7 +161,7 @@ public final class ReputationPlaceholder extends PlaceholderExpansion {
             if (name.isEmpty()) {
                 return "";
             }
-            int reputation = resolveReputationByName(name);
+            int reputation = resolveReputationByUuid(uuidText);
             return resolveNickColorCode(reputation) + name;
         }
 
@@ -178,7 +178,6 @@ public final class ReputationPlaceholder extends PlaceholderExpansion {
             return 0;
         }
 
-        plugin.getReputationManager().registerPlayerIdentity(player);
         return plugin.getReputationManager().getReputation(player.getUniqueId());
     }
 

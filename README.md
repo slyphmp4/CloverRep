@@ -7,7 +7,7 @@
 [![Build](https://github.com/slyphmp4/CloverRep/actions/workflows/build.yml/badge.svg?branch=master)](https://github.com/slyphmp4/CloverRep/actions/workflows/build.yml)
 [![Release](https://img.shields.io/github/v/release/slyphmp4/CloverRep?style=flat-square)](https://github.com/slyphmp4/CloverRep/releases)
 [![Java](https://img.shields.io/badge/Java-25-555?style=flat-square)](https://openjdk.org/)
-[![Paper](https://img.shields.io/badge/Paper-26.2-555?style=flat-square)](https://papermc.io/)
+[![Paper](https://img.shields.io/badge/Paper-26.2%20%7C%2026.3-555?style=flat-square)](https://papermc.io/)
 [![Author](https://img.shields.io/badge/author-slyph-555?style=flat-square)](https://github.com/slyphmp4)
 
 [Releases](https://github.com/slyphmp4/CloverRep/releases) · [Builds](https://github.com/slyphmp4/CloverRep/actions) · [Issues](https://github.com/slyphmp4/CloverRep/issues)
@@ -44,11 +44,11 @@ The score can then be used in chat, tab lists, scoreboards or other plugins thro
 
 | Component | Version / notes |
 | --- | --- |
-| Minecraft / Paper | **26.2** |
+| Minecraft / Paper | **26.2 / 26.3**; built against stable 26.2 API build 133 |
 | Java | **25** |
 | PlaceholderAPI | Optional, built against **2.12.3** |
 
-HikariCP and MySQL Connector/J are bundled and relocated inside the release JAR. They do not need to be installed separately.
+HikariCP, MySQL Connector/J, Protobuf and Caffeine are bundled and relocated inside the release JAR. They do not need to be installed separately. See the [dependency and architecture update](docs/MODERNIZATION.md) for exact versions and validation.
 
 ---
 
@@ -56,7 +56,7 @@ HikariCP and MySQL Connector/J are bundled and relocated inside the release JAR.
 
 1. Download the latest CloverRep JAR from [Releases](https://github.com/slyphmp4/CloverRep/releases), or build it from source.
 2. Put the JAR into the server's `plugins/` directory.
-3. Start Paper 26.2 on Java 25.
+3. Start Paper 26.2 or 26.3 on Java 25.
 4. Configure `plugins/CloverRep/config.yml` and `messages.yml` if needed.
 5. Restart the server or use `/cloverrep reload` for normal configuration changes.
 
@@ -199,6 +199,8 @@ When PlaceholderAPI is installed, CloverRep registers the `cloverrep` expansion 
 
 These variants are useful when another plugin is formatting information about somebody other than the placeholder context player.
 
+Placeholder reads use bounded caches and never wait for SQL or contact Mojang. Online players are preloaded on join. The first lookup for an uncached offline player can return `0` (or an empty name) while the background load completes; the next lookup uses the loaded value. Unknown names remain unknown instead of creating an offline UUID. Cached scores refresh in the background after 30 seconds, keeping shared MySQL scores up to date without blocking a tick.
+
 ---
 
 ## Storage
@@ -234,7 +236,11 @@ mysql:
 
 The connection pool is configurable through the `mysql.pool` section.
 
+Runtime storage operations run in one ordered background queue. Vote insertion and score changes commit together; a database error does not become a cached zero score. `mysql.connect-timeout-millis` and `mysql.socket-timeout-millis` default to 5000. `mysql.ssl-mode` defaults to `PREFERRED` and accepts Connector/J's standard TLS modes.
+
 If CloverRep cannot initialize MySQL during startup, it falls back to local YAML instead of leaving the reputation system unusable.
+
+Backups flush pending data and use distinct filenames. MySQL backups read players and votes from one consistent transaction. Shutdown drains queued work before the final save and closes the connection pool. A malformed local YAML file stops initialization and preserves the original data.
 
 ---
 
@@ -270,6 +276,8 @@ On Windows:
 ```
 
 The shaded, self-contained JAR is written to `build/libs/`.
+
+Gradle 9.8.1 is pinned with its distribution SHA-256. JUnit tests run as part of `build`. To also run the real MySQL tests, provide `CLOVERREP_TEST_MYSQL_URL`, `CLOVERREP_TEST_MYSQL_USER` and `CLOVERREP_TEST_MYSQL_PASSWORD` for an isolated test database; the test suite creates and removes its own randomly prefixed tables. CI runs these tests against MySQL 8.4 and both stable Paper API versions.
 
 ---
 

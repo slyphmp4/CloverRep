@@ -43,6 +43,13 @@ mysql:
   password: "password"
   tablePrefix: "clover_"
 
+  # Предпочитать TLS; REQUIRED / VERIFY_IDENTITY требуют настроенного TLS на MySQL.
+  ssl-mode: "PREFERRED"
+  allow-public-key-retrieval: true
+  # Ограничить ожидание подключения и ответа MySQL (миллисекунды).
+  connect-timeout-millis: 5000
+  socket-timeout-millis: 5000
+
   # Пул соединений HikariCP
   # maximum-size: максимальное количество соединений
   # minimum-idle: минимальное число простаивающих соединений

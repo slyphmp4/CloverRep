@@ -42,7 +42,7 @@ messages:
     - '&7'
   reload-usage:
     - '&7'
-    - '&#E9C66E ⓪  &#C2A65E|  &#E9C66EИспользование: &#FFCE4D/cloverrep &#FFC72Ereload'
+    - '&#E9C66E ⓪  &#C2A65E|  &#E9C66EИспользование: &#FFCE4D/cloverrep &#FFC72E<reload|status|checkdb|backup>'
     - '&7'
 
   reload-success:

@@ -45,7 +45,7 @@ public final class ColorUtil {
         }
 
         Matcher matcher = HEX_PATTERN.matcher(text);
-        StringBuffer buffer = new StringBuffer();
+        StringBuilder buffer = new StringBuilder();
 
         while (matcher.find()) {
             String hex = matcher.group(1);

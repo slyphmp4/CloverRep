@@ -10,6 +10,26 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        paper-api: ['26.2.build.133-stable', '26.3.build.177-stable']
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: cloverrep-ci-password
+          MYSQL_DATABASE: cloverrep_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -pcloverrep-ci-password"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      CLOVERREP_TEST_MYSQL_URL: jdbc:mysql://127.0.0.1:3306/cloverrep_test?allowPublicKeyRetrieval=true
+      CLOVERREP_TEST_MYSQL_USER: root
+      CLOVERREP_TEST_MYSQL_PASSWORD: cloverrep-ci-password
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -22,11 +42,18 @@ jobs:
           cache: gradle
 
       - name: Build plugin
-        run: ./gradlew clean build --warning-mode all
+        run: ./gradlew clean build --warning-mode all -PpaperVersion=${{ matrix.paper-api }}
 
       - name: Upload plugin JAR
         uses: actions/upload-artifact@v7
         with:
-          name: CloverRep-1.7.0
-          path: build/libs/CloverRep-1.7.0.jar
+          name: CloverRep-1.8.0-${{ matrix.paper-api }}
+          path: build/libs/CloverRep-1.8.0.jar
           if-no-files-found: error
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: tests-${{ matrix.paper-api }}
+          path: build/reports/tests/test/

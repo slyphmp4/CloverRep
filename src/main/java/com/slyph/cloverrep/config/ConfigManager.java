@@ -11,8 +11,8 @@ import java.util.Locale;
 public final class ConfigManager {
     private final CloverRepPlugin plugin;
     private final File messagesFile;
-    private FileConfiguration config;
-    private FileConfiguration messagesConfig;
+    private volatile FileConfiguration config;
+    private volatile FileConfiguration messagesConfig;
 
     public ConfigManager(CloverRepPlugin plugin) {
         this.plugin = plugin;
@@ -38,7 +38,7 @@ public final class ConfigManager {
     }
 
     public String getStorageType() {
-        return config.getString("storage.type", "local").toLowerCase(Locale.ROOT);
+        return config.getString("storage.type", "local").trim().toLowerCase(Locale.ROOT);
     }
 
     public long getAutoSaveTicks() {
@@ -68,6 +68,26 @@ public final class ConfigManager {
 
     public String getMySQLTablePrefix() {
         return config.getString("mysql.tablePrefix", "clover_");
+    }
+
+    public String getMySQLSslMode() {
+        String mode = config.getString("mysql.ssl-mode", "PREFERRED").trim().toUpperCase(Locale.ROOT);
+        return switch (mode) {
+            case "DISABLED", "PREFERRED", "REQUIRED", "VERIFY_CA", "VERIFY_IDENTITY" -> mode;
+            default -> "PREFERRED";
+        };
+    }
+
+    public boolean getMySQLAllowPublicKeyRetrieval() {
+        return config.getBoolean("mysql.allow-public-key-retrieval", true);
+    }
+
+    public int getMySQLConnectTimeoutMillis() {
+        return Math.max(1000, config.getInt("mysql.connect-timeout-millis", 5000));
+    }
+
+    public int getMySQLSocketTimeoutMillis() {
+        return Math.max(1000, config.getInt("mysql.socket-timeout-millis", 5000));
     }
 
     public int getMySQLPoolMaximumSize() {

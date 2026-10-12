@@ -65,34 +65,28 @@ public final class RepCommand implements CommandExecutor {
 
         boolean bypassVoteLimit = player.hasPermission("cloverrep.rep.bypass");
 
-        if (!bypassVoteLimit && !plugin.getReputationManager().canVote(player, target)) {
-            MessageUtil.send(player, plugin.getConfigManager().getAlreadyVotedMessage());
-            SoundUtil.playErrorSound(player, plugin.getConfigManager().getErrorSound());
-            return true;
-        }
-
         int amount = action.equals("+") ? 1 : -1;
-        ReputationManager.VoteChangeStatus status = plugin.getReputationManager().addReputation(player, target, amount, bypassVoteLimit);
-
-        if (status == ReputationManager.VoteChangeStatus.ALREADY_VOTED) {
-            MessageUtil.send(player, plugin.getConfigManager().getAlreadyVotedMessage());
-            SoundUtil.playErrorSound(player, plugin.getConfigManager().getErrorSound());
-            return true;
-        }
-
-        if (status == ReputationManager.VoteChangeStatus.FAILED) {
-            MessageUtil.send(player, plugin.getConfigManager().getStorageErrorMessage());
-            SoundUtil.playErrorSound(player, plugin.getConfigManager().getErrorSound());
-            return true;
-        }
-
-        int reputation = plugin.getReputationManager().getReputation(target);
-
-        String success = plugin.getConfigManager().getSuccessMessage()
-                .replace("%target%", target.getName())
-                .replace("%change%", action)
-                .replace("%reputation%", String.valueOf(reputation));
-        MessageUtil.send(player, success);
+        Player resolvedTarget = target;
+        plugin.getReputationManager().addReputation(player, target, amount, bypassVoteLimit).thenAccept(result ->
+                plugin.runOnMainThread(() -> {
+                    plugin.getReputationManager().updatePlayerDisplay(resolvedTarget);
+                    if (!player.isOnline()) {
+                        return;
+                    }
+                    if (result.status() == ReputationManager.VoteChangeStatus.ALREADY_VOTED) {
+                        MessageUtil.send(player, plugin.getConfigManager().getAlreadyVotedMessage());
+                        SoundUtil.playErrorSound(player, plugin.getConfigManager().getErrorSound());
+                    } else if (result.status() == ReputationManager.VoteChangeStatus.FAILED) {
+                        MessageUtil.send(player, plugin.getConfigManager().getStorageErrorMessage());
+                        SoundUtil.playErrorSound(player, plugin.getConfigManager().getErrorSound());
+                    } else {
+                        String success = plugin.getConfigManager().getSuccessMessage()
+                                .replace("%target%", resolvedTarget.getName())
+                                .replace("%change%", action)
+                                .replace("%reputation%", String.valueOf(result.reputation()));
+                        MessageUtil.send(player, success);
+                    }
+                }));
         return true;
     }
 }
