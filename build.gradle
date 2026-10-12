@@ -4,8 +4,9 @@ plugins {
 }
 
 group = 'com.slyph'
-version = '1.7.0'
+version = '1.8.0'
 def pluginVersion = version.toString()
+def paperVersion = providers.gradleProperty('paperVersion').getOrElse('26.2.build.133-stable')
 
 repositories {
     mavenCentral()
@@ -14,13 +15,41 @@ repositories {
 }
 
 dependencies {
-    compileOnly 'io.papermc.paper:paper-api:26.2.build.116-stable'
+    compileOnly "io.papermc.paper:paper-api:${paperVersion}"
     compileOnly 'me.clip:placeholderapi:2.12.3'
 
     implementation('com.zaxxer:HikariCP:7.1.0') {
         exclude group: 'org.slf4j', module: 'slf4j-api'
     }
     implementation 'com.mysql:mysql-connector-j:26.7.0'
+    implementation 'com.google.protobuf:protobuf-java:4.36.2'
+    implementation('com.github.ben-manes.caffeine:caffeine:3.3.0') {
+        exclude group: 'org.jspecify', module: 'jspecify'
+        exclude group: 'com.google.errorprone', module: 'error_prone_annotations'
+    }
+
+    testImplementation "io.papermc.paper:paper-api:${paperVersion}"
+    testImplementation 'me.clip:placeholderapi:2.12.3'
+    testImplementation platform('org.junit:junit-bom:6.1.3')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation 'org.mockito:mockito-core:5.24.0'
+}
+
+configurations {
+    mockitoAgent
+}
+
+dependencies {
+    mockitoAgent('org.mockito:mockito-core:5.24.0') { transitive = false }
+}
+
+tasks.test {
+    useJUnitPlatform()
+    jvmArgs "-javaagent:${configurations.mockitoAgent.singleFile}"
+    systemProperty 'cloverrep.test.mysql.url', providers.environmentVariable('CLOVERREP_TEST_MYSQL_URL').getOrElse('')
+    systemProperty 'cloverrep.test.mysql.user', providers.environmentVariable('CLOVERREP_TEST_MYSQL_USER').getOrElse('root')
+    systemProperty 'cloverrep.test.mysql.password', providers.environmentVariable('CLOVERREP_TEST_MYSQL_PASSWORD').getOrElse('')
 }
 
 java {
@@ -42,6 +71,7 @@ tasks.processResources {
     filesMatching('plugin.yml') {
         expand(version: pluginVersion)
     }
+    inputs.property('pluginVersion', pluginVersion)
 }
 
 tasks.shadowJar {
@@ -51,6 +81,11 @@ tasks.shadowJar {
     relocate 'com.zaxxer.hikari', 'com.slyph.cloverrep.libs.hikari'
     relocate 'com.mysql', 'com.slyph.cloverrep.libs.mysql'
     relocate 'com.google.protobuf', 'com.slyph.cloverrep.libs.protobuf'
+    relocate 'com.github.benmanes.caffeine', 'com.slyph.cloverrep.libs.caffeine'
+}
+
+tasks.jar {
+    archiveClassifier.set('plain')
 }
 
 tasks.withType(AbstractArchiveTask).configureEach {

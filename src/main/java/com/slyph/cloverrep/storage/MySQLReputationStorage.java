@@ -12,6 +12,7 @@ import org.bukkit.entity.Player;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
@@ -51,6 +52,7 @@ public final class MySQLReputationStorage implements ReputationDataSource {
     private final String selectVotersSql;
     private final String upsertIdentitySql;
     private final String selectUuidByNameSql;
+    private final String selectUuidByNameCaseInsensitiveSql;
     private final String selectNameByUuidSql;
     private final String countPlayersSql;
     private final String countVotesSql;
@@ -70,7 +72,9 @@ public final class MySQLReputationStorage implements ReputationDataSource {
         this.tableVoters = prefix + "voters";
 
         this.jdbcUrl = "jdbc:mysql://" + config.getMySQLHost() + ":" + config.getMySQLPort() + "/" + config.getMySQLDatabase()
-                + "?useSSL=false&allowPublicKeyRetrieval=true&useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC&tcpKeepAlive=true";
+                + "?sslMode=" + config.getMySQLSslMode() + "&allowPublicKeyRetrieval=" + config.getMySQLAllowPublicKeyRetrieval()
+                + "&characterEncoding=UTF-8&connectionTimeZone=UTC&tcpKeepAlive=true"
+                + "&connectTimeout=" + config.getMySQLConnectTimeoutMillis() + "&socketTimeout=" + config.getMySQLSocketTimeoutMillis();
         this.dbUser = config.getMySQLUser();
         this.dbPassword = config.getMySQLPassword();
 
@@ -82,15 +86,17 @@ public final class MySQLReputationStorage implements ReputationDataSource {
 
         this.selectReputationSql = "SELECT reputation FROM " + tablePlayers + " WHERE player_uuid = ?";
         this.upsertReputationSql = "INSERT INTO " + tablePlayers + " (player_uuid, last_name, reputation) VALUES (?, ?, ?) "
-                + "ON DUPLICATE KEY UPDATE reputation = VALUES(reputation), last_name = VALUES(last_name), updated_at = CURRENT_TIMESTAMP";
+                + "ON DUPLICATE KEY UPDATE reputation = ?, last_name = ?, updated_at = CURRENT_TIMESTAMP";
         this.incrementReputationSql = "INSERT INTO " + tablePlayers + " (player_uuid, last_name, reputation) VALUES (?, ?, ?) "
-                + "ON DUPLICATE KEY UPDATE reputation = reputation + VALUES(reputation), last_name = VALUES(last_name), updated_at = CURRENT_TIMESTAMP";
+                + "ON DUPLICATE KEY UPDATE reputation = reputation + ?, updated_at = CURRENT_TIMESTAMP";
         this.hasVotedSql = "SELECT 1 FROM " + tableVoters + " WHERE voter_uuid = ? AND target_uuid = ? LIMIT 1";
-        this.insertVoteSql = "INSERT IGNORE INTO " + tableVoters + " (voter_uuid, target_uuid) VALUES (?, ?)";
+        this.insertVoteSql = "INSERT INTO " + tableVoters + " (voter_uuid, target_uuid) VALUES (?, ?)";
         this.selectVotersSql = "SELECT target_uuid FROM " + tableVoters + " WHERE voter_uuid = ?";
         this.upsertIdentitySql = "INSERT INTO " + tablePlayers + " (player_uuid, last_name, reputation) VALUES (?, ?, 0) "
-                + "ON DUPLICATE KEY UPDATE last_name = VALUES(last_name), updated_at = CURRENT_TIMESTAMP";
-        this.selectUuidByNameSql = "SELECT player_uuid FROM " + tablePlayers + " WHERE LOWER(last_name) = LOWER(?) "
+                + "ON DUPLICATE KEY UPDATE last_name = ?, updated_at = CURRENT_TIMESTAMP";
+        this.selectUuidByNameSql = "SELECT player_uuid FROM " + tablePlayers + " WHERE last_name = ? "
+                + "ORDER BY updated_at DESC LIMIT 1";
+        this.selectUuidByNameCaseInsensitiveSql = "SELECT player_uuid FROM " + tablePlayers + " WHERE LOWER(last_name) = LOWER(?) "
                 + "ORDER BY updated_at DESC LIMIT 1";
         this.selectNameByUuidSql = "SELECT last_name FROM " + tablePlayers + " WHERE player_uuid = ? LIMIT 1";
         this.countPlayersSql = "SELECT COUNT(*) FROM " + tablePlayers;
@@ -118,6 +124,7 @@ public final class MySQLReputationStorage implements ReputationDataSource {
             statement.setString(1, playerId.toString());
             try (ResultSet result = statement.executeQuery()) {
                 if (result.next()) {
+                    available = true;
                     return result.getInt("reputation");
                 }
             }
@@ -125,7 +132,7 @@ public final class MySQLReputationStorage implements ReputationDataSource {
             return 0;
         } catch (SQLException exception) {
             onSqlError("load reputation for " + playerId, exception);
-            return 0;
+            throw new StorageException("Could not load player reputation.", exception);
         }
     }
 
@@ -142,10 +149,13 @@ public final class MySQLReputationStorage implements ReputationDataSource {
             statement.setString(1, playerId.toString());
             statement.setString(2, playerName);
             statement.setInt(3, reputation);
+            statement.setInt(4, reputation);
+            statement.setString(5, playerName);
             statement.executeUpdate();
             available = true;
         } catch (SQLException exception) {
             onSqlError("save reputation for " + playerId, exception);
+            throw new StorageException("Could not save player reputation.", exception);
         }
     }
 
@@ -166,7 +176,7 @@ public final class MySQLReputationStorage implements ReputationDataSource {
             }
         } catch (SQLException exception) {
             onSqlError("check vote between " + voterId + " and " + targetId, exception);
-            return false;
+            throw new StorageException("Could not check vote history.", exception);
         }
     }
 
@@ -183,7 +193,12 @@ public final class MySQLReputationStorage implements ReputationDataSource {
             statement.executeUpdate();
             available = true;
         } catch (SQLException exception) {
+            if (exception.getErrorCode() == 1062) {
+                available = true;
+                return;
+            }
             onSqlError("save vote between " + voterId + " and " + targetId, exception);
+            throw new StorageException("Could not save vote history.", exception);
         }
     }
 
@@ -208,6 +223,7 @@ public final class MySQLReputationStorage implements ReputationDataSource {
             available = true;
         } catch (SQLException exception) {
             onSqlError("load voted targets for " + voterId, exception);
+            throw new StorageException("Could not load vote history.", exception);
         }
 
         return voters;
@@ -225,10 +241,12 @@ public final class MySQLReputationStorage implements ReputationDataSource {
              PreparedStatement statement = connection.prepareStatement(upsertIdentitySql)) {
             statement.setString(1, playerId.toString());
             statement.setString(2, safeName);
+            statement.setString(3, safeName);
             statement.executeUpdate();
             available = true;
         } catch (SQLException exception) {
             onSqlError("update identity for " + playerId, exception);
+            throw new StorageException("Could not persist player identity.", exception);
         }
     }
 
@@ -247,9 +265,20 @@ public final class MySQLReputationStorage implements ReputationDataSource {
                     return parseUuid(result.getString("player_uuid"));
                 }
             }
+            // Preserve lookups on existing tables with a case-sensitive name collation.
+            try (PreparedStatement fallback = connection.prepareStatement(selectUuidByNameCaseInsensitiveSql)) {
+                fallback.setString(1, trimPlayerName(playerName));
+                try (ResultSet result = fallback.executeQuery()) {
+                    if (result.next()) {
+                        available = true;
+                        return parseUuid(result.getString("player_uuid"));
+                    }
+                }
+            }
             available = true;
         } catch (SQLException exception) {
             onSqlError("find UUID by name " + playerName, exception);
+            throw new StorageException("Could not resolve player name.", exception);
         }
 
         return null;
@@ -273,6 +302,7 @@ public final class MySQLReputationStorage implements ReputationDataSource {
             available = true;
         } catch (SQLException exception) {
             onSqlError("find name by UUID " + playerId, exception);
+            throw new StorageException("Could not resolve player UUID.", exception);
         }
 
         return "";
@@ -280,88 +310,67 @@ public final class MySQLReputationStorage implements ReputationDataSource {
 
     @Override
     public Integer applyVote(UUID voterId, UUID targetId, int amount) {
-        if (voterId == null || targetId == null) {
+        if (voterId == null || targetId == null || voterId.equals(targetId) || (amount != 1 && amount != -1)) {
             return null;
         }
+        return changeReputation(voterId, targetId, amount);
+    }
 
-        String targetName = getSafeName(findNameByUuid(targetId), targetId);
+    @Override
+    public Integer adjustReputation(UUID playerId, int amount) {
+        return playerId == null ? null : changeReputation(null, playerId, amount);
+    }
 
+    private Integer changeReputation(UUID voterId, UUID targetId, int amount) {
         try (Connection connection = openConnection()) {
-            boolean previousAutoCommit = connection.getAutoCommit();
+            connection.setAutoCommit(false);
             try {
-                connection.setAutoCommit(false);
-
-                int insertedVote;
-                try (PreparedStatement statement = connection.prepareStatement(insertVoteSql)) {
-                    statement.setString(1, voterId.toString());
-                    statement.setString(2, targetId.toString());
-                    insertedVote = statement.executeUpdate();
+                if (voterId != null) {
+                    try (PreparedStatement vote = connection.prepareStatement(insertVoteSql)) {
+                        vote.setString(1, voterId.toString());
+                        vote.setString(2, targetId.toString());
+                        try {
+                            vote.executeUpdate();
+                        } catch (SQLException exception) {
+                            if (exception.getErrorCode() != 1062) {
+                                throw exception;
+                            }
+                            connection.rollback();
+                            available = true;
+                            return null;
+                        }
+                    }
                 }
 
-                if (insertedVote == 0) {
-                    connection.rollback();
-                    return null;
-                }
-
-                try (PreparedStatement statement = connection.prepareStatement(incrementReputationSql)) {
-                    statement.setString(1, targetId.toString());
-                    statement.setString(2, targetName);
-                    statement.setInt(3, amount);
-                    statement.executeUpdate();
+                try (PreparedStatement update = connection.prepareStatement(incrementReputationSql)) {
+                    update.setString(1, targetId.toString());
+                    update.setString(2, getSafeName("", targetId));
+                    update.setInt(3, amount);
+                    update.setInt(4, amount);
+                    update.executeUpdate();
                 }
 
                 int updated;
-                try (PreparedStatement statement = connection.prepareStatement(selectReputationSql)) {
-                    statement.setString(1, targetId.toString());
-                    try (ResultSet result = statement.executeQuery()) {
+                try (PreparedStatement select = connection.prepareStatement(selectReputationSql)) {
+                    select.setString(1, targetId.toString());
+                    try (ResultSet result = select.executeQuery()) {
                         if (!result.next()) {
-                            connection.rollback();
-                            return null;
+                            throw new SQLException("The updated player record is missing.");
                         }
                         updated = result.getInt("reputation");
                     }
                 }
-
                 connection.commit();
                 available = true;
                 return updated;
             } catch (SQLException exception) {
                 rollbackQuietly(connection);
-                onSqlError("apply vote between " + voterId + " and " + targetId, exception);
-                return null;
-            } finally {
-                try {
-                    connection.setAutoCommit(previousAutoCommit);
-                } catch (SQLException ignored) {
-                }
+                throw exception;
             }
         } catch (SQLException exception) {
-            onSqlError("open transaction for vote", exception);
-            return null;
+            onSqlError("change reputation for " + targetId, exception);
+            throw new StorageException("Could not commit reputation change.", exception);
         }
-    }
-
-    @Override
-    public Integer adjustReputation(UUID playerId, int amount) {
-        if (playerId == null) {
-            return null;
-        }
-
-        String targetName = getSafeName(findNameByUuid(playerId), playerId);
-
-        try (Connection connection = openConnection();
-             PreparedStatement statement = connection.prepareStatement(incrementReputationSql)) {
-            statement.setString(1, playerId.toString());
-            statement.setString(2, targetName);
-            statement.setInt(3, amount);
-            statement.executeUpdate();
-            available = true;
-        } catch (SQLException exception) {
-            onSqlError("adjust reputation for " + playerId, exception);
-            return null;
-        }
-
-        return getReputation(playerId);
     }
 
     @Override
@@ -400,45 +409,48 @@ public final class MySQLReputationStorage implements ReputationDataSource {
 
     @Override
     public StorageBackupResult createBackup(File backupDirectory) {
-        if (backupDirectory == null) {
-            return StorageBackupResult.failure("Backup directory is not defined.");
-        }
-
-        if (!backupDirectory.exists() && !backupDirectory.mkdirs()) {
+        if (backupDirectory == null || (!backupDirectory.isDirectory() && !backupDirectory.mkdirs())) {
             return StorageBackupResult.failure("Could not create backup directory.");
         }
-
-        String timestamp = LocalDateTime.now().format(BACKUP_FORMAT);
-        File backupFile = new File(backupDirectory, "reputation-mysql-" + timestamp + ".yml");
         YamlConfiguration snapshot = new YamlConfiguration();
-
         snapshot.set("meta.storage", "mysql");
         snapshot.set("meta.generated-at", Instant.now().toString());
         snapshot.set("meta.players-table", tablePlayers);
         snapshot.set("meta.votes-table", tableVoters);
 
-        try (Connection connection = openConnection();
-             PreparedStatement playersStatement = connection.prepareStatement(selectAllPlayersSql);
-             PreparedStatement votesStatement = connection.prepareStatement(selectAllVotesSql);
-             ResultSet players = playersStatement.executeQuery();
-             ResultSet votes = votesStatement.executeQuery()) {
-            while (players.next()) {
-                String playerUuid = players.getString("player_uuid");
-                snapshot.set("players." + playerUuid + ".name", players.getString("last_name"));
-                snapshot.set("players." + playerUuid + ".reputation", players.getInt("reputation"));
-                snapshot.set("players." + playerUuid + ".updated-at", String.valueOf(players.getTimestamp("updated_at")));
+        try (Connection connection = openConnection()) {
+            connection.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
+            connection.setReadOnly(true);
+            connection.setAutoCommit(false);
+            try {
+                try (PreparedStatement statement = connection.prepareStatement(selectAllPlayersSql);
+                     ResultSet players = statement.executeQuery()) {
+                    while (players.next()) {
+                        String id = players.getString("player_uuid");
+                        snapshot.set("players." + id + ".name", players.getString("last_name"));
+                        snapshot.set("players." + id + ".reputation", players.getInt("reputation"));
+                        snapshot.set("players." + id + ".updated-at", String.valueOf(players.getTimestamp("updated_at")));
+                    }
+                }
+                try (PreparedStatement statement = connection.prepareStatement(selectAllVotesSql);
+                     ResultSet votes = statement.executeQuery()) {
+                    int index = 0;
+                    while (votes.next()) {
+                        snapshot.set("votes." + index + ".voter", votes.getString("voter_uuid"));
+                        snapshot.set("votes." + index + ".target", votes.getString("target_uuid"));
+                        snapshot.set("votes." + index + ".created-at", String.valueOf(votes.getTimestamp("created_at")));
+                        index++;
+                    }
+                }
+                connection.commit();
+            } catch (SQLException exception) {
+                rollbackQuietly(connection);
+                throw exception;
             }
-
-            int index = 0;
-            while (votes.next()) {
-                snapshot.set("votes." + index + ".voter", votes.getString("voter_uuid"));
-                snapshot.set("votes." + index + ".target", votes.getString("target_uuid"));
-                snapshot.set("votes." + index + ".created-at", String.valueOf(votes.getTimestamp("created_at")));
-                index++;
-            }
-
-            snapshot.save(backupFile);
             available = true;
+            String timestamp = LocalDateTime.now().format(BACKUP_FORMAT);
+            File backupFile = Files.createTempFile(backupDirectory.toPath(), "reputation-mysql-" + timestamp + "-", ".yml").toFile();
+            snapshot.save(backupFile);
             return StorageBackupResult.success(backupFile.getName());
         } catch (SQLException exception) {
             onSqlError("create backup", exception);
@@ -500,7 +512,7 @@ public final class MySQLReputationStorage implements ReputationDataSource {
         config.setConnectionTimeout(poolConnectionTimeout);
         config.setIdleTimeout(poolIdleTimeout);
         config.setMaxLifetime(poolMaxLifetime);
-        config.setValidationTimeout(3000L);
+        config.setValidationTimeout(Math.min(3000L, poolConnectionTimeout));
         config.setInitializationFailTimeout(-1L);
         config.addDataSourceProperty("cachePrepStmts", "true");
         config.addDataSourceProperty("prepStmtCacheSize", "250");
@@ -572,8 +584,8 @@ public final class MySQLReputationStorage implements ReputationDataSource {
 
         String selectSql = buildLegacyPlayersSelectSql(hasPlayerUuid, hasLastName);
         String insertSql = "INSERT INTO " + tempTable + " (player_uuid, last_name, reputation) VALUES (?, ?, ?) "
-                + "ON DUPLICATE KEY UPDATE reputation = reputation + VALUES(reputation), "
-                + "last_name = VALUES(last_name), updated_at = CURRENT_TIMESTAMP";
+                + "ON DUPLICATE KEY UPDATE reputation = reputation + ?, "
+                + "last_name = ?, updated_at = CURRENT_TIMESTAMP";
 
         try (PreparedStatement select = connection.prepareStatement(selectSql);
              ResultSet result = select.executeQuery();
@@ -598,6 +610,8 @@ public final class MySQLReputationStorage implements ReputationDataSource {
                 insert.setString(1, playerId.toString());
                 insert.setString(2, storedName);
                 insert.setInt(3, result.getInt("reputation"));
+                insert.setInt(4, result.getInt("reputation"));
+                insert.setString(5, storedName);
                 insert.addBatch();
             }
             insert.executeBatch();
@@ -724,7 +738,13 @@ public final class MySQLReputationStorage implements ReputationDataSource {
     private boolean hasColumn(Connection connection, String tableName, String columnName) throws SQLException {
         DatabaseMetaData metaData = connection.getMetaData();
         try (ResultSet columns = metaData.getColumns(connection.getCatalog(), null, tableName, columnName)) {
-            return columns.next();
+            while (columns.next()) {
+                if (tableName.equalsIgnoreCase(columns.getString("TABLE_NAME"))
+                        && columnName.equalsIgnoreCase(columns.getString("COLUMN_NAME"))) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 

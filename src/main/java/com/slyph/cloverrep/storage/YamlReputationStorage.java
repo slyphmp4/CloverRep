@@ -1,11 +1,14 @@
 package com.slyph.cloverrep.storage;
 
 import com.slyph.cloverrep.CloverRepPlugin;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.entity.Player;
 
 import java.io.File;
@@ -15,6 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
+import java.time.Duration;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -32,6 +36,9 @@ public final class YamlReputationStorage implements ReputationDataSource {
     private final CloverRepPlugin plugin;
     private final File file;
     private final FileConfiguration config;
+    private volatile boolean available = true;
+    private final Cache<UUID, Set<UUID>> votersCache = Caffeine.newBuilder().maximumSize(10_000)
+            .expireAfterAccess(Duration.ofMinutes(15)).build();
 
     public YamlReputationStorage(CloverRepPlugin plugin) {
         this.plugin = plugin;
@@ -54,7 +61,13 @@ public final class YamlReputationStorage implements ReputationDataSource {
             }
         }
 
-        this.config = YamlConfiguration.loadConfiguration(file);
+        YamlConfiguration loaded = new YamlConfiguration();
+        try {
+            loaded.load(file);
+        } catch (IOException | InvalidConfigurationException exception) {
+            throw new StorageException("Cannot read reputation.yml; the original file has been preserved.", exception);
+        }
+        this.config = loaded;
         migrateIfNeeded();
     }
 
@@ -108,6 +121,11 @@ public final class YamlReputationStorage implements ReputationDataSource {
         }
 
         String sanitizedName = trimPlayerName(playerName);
+        String previousName = config.getString(playerNamePath(playerId), "");
+        if (!previousName.isBlank() && !previousName.equalsIgnoreCase(sanitizedName)
+                && playerId.toString().equals(config.getString(nameIndexPath(previousName)))) {
+            config.set(nameIndexPath(previousName), null);
+        }
         config.set(playerNamePath(playerId), sanitizedName);
         config.set(nameIndexPath(sanitizedName), playerId.toString());
     }
@@ -156,7 +174,7 @@ public final class YamlReputationStorage implements ReputationDataSource {
 
     @Override
     public synchronized Integer applyVote(UUID voterId, UUID targetId, int amount) {
-        if (voterId == null || targetId == null) {
+        if (voterId == null || targetId == null || voterId.equals(targetId) || (amount != 1 && amount != -1)) {
             return null;
         }
 
@@ -165,10 +183,14 @@ public final class YamlReputationStorage implements ReputationDataSource {
             return null;
         }
 
+        int updated;
+        try {
+            updated = Math.addExact(getReputation(targetId), amount);
+        } catch (ArithmeticException exception) {
+            return null;
+        }
         voters.add(targetId);
         config.set(votesPath(voterId), toStringList(voters));
-
-        int updated = getReputation(targetId) + amount;
         config.set(playerReputationPath(targetId), updated);
         return updated;
     }
@@ -179,7 +201,12 @@ public final class YamlReputationStorage implements ReputationDataSource {
             return null;
         }
 
-        int updated = getReputation(playerId) + amount;
+        int updated;
+        try {
+            updated = Math.addExact(getReputation(playerId), amount);
+        } catch (ArithmeticException exception) {
+            return null;
+        }
         config.set(playerReputationPath(playerId), updated);
         return updated;
     }
@@ -193,11 +220,18 @@ public final class YamlReputationStorage implements ReputationDataSource {
     public synchronized boolean saveData() {
         try {
             safeSave();
+            available = true;
             return true;
         } catch (IOException exception) {
+            available = false;
             plugin.getLogger().severe("Failed to save reputation.yml: " + exception.getMessage());
             return false;
         }
+    }
+
+    @Override
+    public boolean isAvailable() {
+        return available;
     }
 
     @Override
@@ -210,10 +244,12 @@ public final class YamlReputationStorage implements ReputationDataSource {
             return StorageBackupResult.failure("Could not create backup directory.");
         }
 
-        String timestamp = LocalDateTime.now().format(BACKUP_FORMAT);
-        File backupFile = new File(backupDirectory, "reputation-local-" + timestamp + ".yml");
-
         try {
+            if (!saveData()) {
+                return StorageBackupResult.failure("Could not save current reputation data.");
+            }
+            String timestamp = LocalDateTime.now().format(BACKUP_FORMAT);
+            File backupFile = Files.createTempFile(backupDirectory.toPath(), "reputation-local-" + timestamp + "-", ".yml").toFile();
             Files.copy(file.toPath(), backupFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
             return StorageBackupResult.success(backupFile.getName());
         } catch (IOException exception) {
@@ -235,10 +271,24 @@ public final class YamlReputationStorage implements ReputationDataSource {
         readLegacyReputationsSection(reputations, names);
         readVotesSection(votes, names);
 
+        try {
+            Files.copy(file.toPath(), Files.createTempFile(file.toPath().getParent(), "reputation-pre-migration-", ".bak"),
+                    StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException exception) {
+            throw new StorageException("Cannot back up reputation.yml before migration; migration was cancelled.", exception);
+        }
+
         config.set("players", null);
         config.set("names", null);
         config.set("reputations", null);
         config.set("votes", null);
+        config.createSection("players");
+        config.createSection("names");
+        config.createSection("votes");
+
+        for (UUID playerId : names.keySet()) {
+            reputations.putIfAbsent(playerId, 0);
+        }
 
         for (Map.Entry<UUID, Integer> entry : reputations.entrySet()) {
             UUID playerId = entry.getKey();
@@ -384,6 +434,10 @@ public final class YamlReputationStorage implements ReputationDataSource {
     }
 
     private Set<UUID> getVotersInternal(UUID voterId) {
+        return votersCache.get(voterId, this::loadVoters);
+    }
+
+    private Set<UUID> loadVoters(UUID voterId) {
         List<String> votersList = config.getStringList(votesPath(voterId));
         Set<UUID> result = new LinkedHashSet<>();
         for (String voter : votersList) {

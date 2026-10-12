@@ -21,22 +21,10 @@ public interface ReputationDataSource {
 
     String findNameByUuid(UUID playerId);
 
-    default Integer applyVote(UUID voterId, UUID targetId, int amount) {
-        if (hasVoted(voterId, targetId)) {
-            return null;
-        }
+    // Implementations must apply a vote and its score change atomically.
+    Integer applyVote(UUID voterId, UUID targetId, int amount);
 
-        addVoter(voterId, targetId);
-        int updated = getReputation(targetId) + amount;
-        setReputation(targetId, updated);
-        return updated;
-    }
-
-    default Integer adjustReputation(UUID playerId, int amount) {
-        int updated = getReputation(playerId) + amount;
-        setReputation(playerId, updated);
-        return updated;
-    }
+    Integer adjustReputation(UUID playerId, int amount);
 
     String getBackendName();
 

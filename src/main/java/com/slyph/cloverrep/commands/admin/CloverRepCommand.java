@@ -81,14 +81,22 @@ public final class CloverRepCommand implements CommandExecutor {
             return true;
         }
 
-        StorageCheckResult result = plugin.getReputationManager().checkStorage();
+        plugin.getReputationManager().checkStorage().thenAccept(result ->
+                plugin.runOnMainThread(() -> sendCheckDbResult(sender, result)));
+        return true;
+    }
+
+    private void sendCheckDbResult(CommandSender sender, StorageCheckResult result) {
+        if (sender instanceof Player player && !player.isOnline()) {
+            return;
+        }
         if (result.success()) {
             String message = plugin.getConfigManager().getCheckDbSuccessMessage()
                     .replace("%latency%", String.valueOf(result.latencyMillis()))
                     .replace("%players%", String.valueOf(result.playersCount()))
                     .replace("%votes%", String.valueOf(result.votesCount()));
             MessageUtil.send(sender, message);
-            return true;
+            return;
         }
 
         String errorText = result.errorMessage() == null || result.errorMessage().isBlank() ? "unknown error" : result.errorMessage();
@@ -97,7 +105,6 @@ public final class CloverRepCommand implements CommandExecutor {
         if (sender instanceof Player player) {
             SoundUtil.playErrorSound(player, plugin.getConfigManager().getErrorSound());
         }
-        return true;
     }
 
     private boolean handleBackup(CommandSender sender) {
@@ -106,11 +113,19 @@ public final class CloverRepCommand implements CommandExecutor {
             return true;
         }
 
-        StorageBackupResult result = plugin.getReputationManager().createBackup();
+        plugin.getReputationManager().createBackup().thenAccept(result ->
+                plugin.runOnMainThread(() -> sendBackupResult(sender, result)));
+        return true;
+    }
+
+    private void sendBackupResult(CommandSender sender, StorageBackupResult result) {
+        if (sender instanceof Player player && !player.isOnline()) {
+            return;
+        }
         if (result.success()) {
             String message = plugin.getConfigManager().getBackupSuccessMessage().replace("%file%", result.fileName());
             MessageUtil.send(sender, message);
-            return true;
+            return;
         }
 
         String errorText = result.errorMessage() == null || result.errorMessage().isBlank() ? "unknown error" : result.errorMessage();
@@ -119,7 +134,6 @@ public final class CloverRepCommand implements CommandExecutor {
         if (sender instanceof Player player) {
             SoundUtil.playErrorSound(player, plugin.getConfigManager().getErrorSound());
         }
-        return true;
     }
 
     private void sendNoPermission(CommandSender sender) {

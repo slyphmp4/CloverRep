@@ -3,7 +3,7 @@ main: com.slyph.cloverrep.CloverRepPlugin
 version: '${version}'
 api-version: '26.2'
 authors: [slyph]
-description: Reputation plugin for Paper 26.2 with safe display and storage handling.
+description: Reputation plugin for Paper 26.2 and 26.3 with asynchronous storage.
 softdepend: [PlaceholderAPI]
 
 commands:
