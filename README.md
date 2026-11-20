@@ -44,11 +44,13 @@ The score can then be used in chat, tab lists, scoreboards or other plugins thro
 
 | Component | Version / notes |
 | --- | --- |
-| Minecraft / Paper | **26.2 / 26.3**; built against stable 26.2 API build 133 |
+| Minecraft / Paper | **26.2 / 26.3**; minimum 26.2 API build 133, CI compiles against 26.3 API build 255 |
 | Java | **25** |
 | PlaceholderAPI | Optional, built against **2.12.3** |
 
 HikariCP, MySQL Connector/J, Protobuf and Caffeine are bundled and relocated inside the release JAR. They do not need to be installed separately. See the [dependency and architecture update](docs/MODERNIZATION.md) for exact versions and validation.
+
+**Fabric/Cardboard:** This is a Bukkit/Paper plugin, not a native Fabric mod. The 26.3 build includes a safe Bukkit sound fallback for incomplete Paper registry implementations. Automated Paper compatibility tests do not guarantee compatibility with every Cardboard fork; see [26.3 verification](docs/26.3.md) for on-server checks.
 
 ---
 
@@ -277,7 +279,7 @@ On Windows:
 
 The shaded, self-contained JAR is written to `build/libs/`.
 
-Gradle 9.8.1 is pinned with its distribution SHA-256. JUnit tests run as part of `build`. To also run the real MySQL tests, provide `CLOVERREP_TEST_MYSQL_URL`, `CLOVERREP_TEST_MYSQL_USER` and `CLOVERREP_TEST_MYSQL_PASSWORD` for an isolated test database; the test suite creates and removes its own randomly prefixed tables. CI runs these tests against MySQL 8.4 and both stable Paper API versions.
+Gradle 9.8.1 is pinned with its distribution SHA-256. JUnit tests run as part of `build`. GitHub Actions compiles and tests against pinned Paper 26.2 and 26.3 APIs, verifies shaded dependencies, and boots a real Paper 26.3 server to test the `/cloverrep status` and `/cloverrep backup` commands. To also run the real MySQL tests, provide `CLOVERREP_TEST_MYSQL_URL`, `CLOVERREP_TEST_MYSQL_USER` and `CLOVERREP_TEST_MYSQL_PASSWORD` for an isolated test database; the test suite creates and removes its own randomly prefixed tables. CI runs these tests against MySQL 8.4 and both stable Paper API versions.
 
 ---
 
