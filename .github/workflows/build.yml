@@ -51,8 +51,9 @@ jobs:
           test -s "$JAR"
           unzip -p "$JAR" plugin.yml | grep -F "name: CloverRep"
           unzip -p "$JAR" plugin.yml | grep -F "version: '1.8.1'"
-          unzip -l "$JAR" | grep -q 'com/slyph/cloverrep/libs/hikari/HikariDataSource.class'
-          unzip -l "$JAR" | grep -q 'com/slyph/cloverrep/libs/mysql/cj/jdbc/Driver.class'
+          ENTRIES="$(unzip -Z -1 "$JAR")"
+          grep -Fx 'com/slyph/cloverrep/libs/hikari/HikariDataSource.class' <<< "$ENTRIES"
+          grep -Fx 'com/slyph/cloverrep/libs/mysql/cj/jdbc/Driver.class' <<< "$ENTRIES"
 
       - name: Upload plugin JAR
         uses: actions/upload-artifact@v7
@@ -103,6 +104,16 @@ jobs:
           mkdir -p smoke/plugins
           cp dist/CloverRep-1.8.1.jar smoke/plugins/
           printf 'eula=true\n' > smoke/eula.txt
+          mkdir -p smoke/plugins/CloverRep
+          cat > smoke/plugins/CloverRep/messages.yml <<'YAML'
+          messages:
+            status:
+              - 'Backend:%backend%'
+            backup-success:
+              - 'Backup created:%file%'
+            backup-error:
+              - 'Backup FAILED:%error%'
+          YAML
           python3 scripts/smoke_paper.py paper.jar smoke
 
       - name: Upload server log on failure
