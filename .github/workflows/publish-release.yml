@@ -1,0 +1,113 @@
+name: Publish CloverRep 1.8.1
+
+# The initial push of this workflow publishes v1.8.1 once.
+# The manual trigger can retry if the initial publishing attempt fails.
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/publish-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cloverrep-publish-1.8.1
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Publish verified shaded JAR
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout release sources
+        uses: actions/checkout@v4
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+
+      - name: Verify release version and existing release
+        env:
+          GH_TOKEN: {{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fx "version = '1.8.1'" build.gradle
+          if gh release view v1.8.1 --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "Release v1.8.1 already exists; refusing to replace it."
+            exit 1
+          fi
+          if git ls-remote --tags origin refs/tags/v1.8.1 | grep -q .; then
+            echo "Tag v1.8.1 already exists but release does not; refusing to retag it."
+            exit 1
+          fi
+
+      - name: Test and build release for Paper 26.2 minimum
+        run: ./gradlew clean build --no-daemon -PpaperVersion=26.2.build.133-stable
+
+      - name: Verify package and dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          JAR="build/libs/CloverRep-1.8.1.jar"
+          test -s "$JAR"
+          unzip -p "$JAR" plugin.yml | grep -Fx "version: '1.8.1'"
+          unzip -p "$JAR" plugin.yml | grep -Fx "api-version: '26.2'"
+          ENTRIES="$(unzip -Z -1 "$JAR")"
+          grep -Fx 'com/slyph/cloverrep/libs/hikari/HikariDataSource.class' <<< "$ENTRIES"
+          grep -Fx 'com/slyph/cloverrep/libs/mysql/cj/jdbc/Driver.class' <<< "$ENTRIES"
+          sha256sum "$JAR" | tee SHA256SUMS
+
+      - name: Write release notes
+        shell: bash
+        run: |
+          cat > release-notes.md <<'EOF'
+          ## CloverRep 1.8.1 — Minecraft 26.3
+
+          Compatibility release for **Paper 26.2 and 26.3** (Java 25).
+
+          ### Changes
+          - Safer error-sound handling when a Bukkit-compatible bridge does not fully implement Paper's sound registries.
+          - Legacy sound names and explicit namespaced sound keys remain supported.
+          - Builds and tests against Paper API 26.2 build 133 and Paper API 26.3 build 255.
+          - Added shaded dependency checks and a real Paper 26.3 startup smoke test (status, backup and clean shutdown).
+          - HikariCP, MySQL Connector/J, Protobuf and Caffeine are bundled into the JAR; PlaceholderAPI is optional.
+
+          ### Installation
+          Stop the server, back up plugins/CloverRep/, replace the existing CloverRep JAR with the attached **CloverRep-1.8.1.jar**, and start the server. Keep your existing configurations and reputation data.
+
+          ### Validation
+          CI passed against both supported Paper APIs, and the new server smoke test passed on Paper 26.3. **Fabric/Cardboard 26.3 is not yet certified on a live Cardboard server.** See docs/26.3.md in the source repository for the recommended on-server checklist.
+
+          [Changes from v1.8.0](https://github.com/slyphmp4/CloverRep/compare/v1.8.0...v1.8.1)
+          EOF
+
+      - name: Publish GitHub release with JAR and checksum
+        env:
+          GH_TOKEN: {{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create v1.8.1 \
+            "build/libs/CloverRep-1.8.1.jar#CloverRep-1.8.1.jar" \
+            "SHA256SUMS#SHA256SUMS" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "CloverRep 1.8.1 — Minecraft 26.3 compatibility" \
+            --notes-file release-notes.md \
+            --latest
+
+      - name: Verify public release and assets
+        env:
+          GH_TOKEN: {{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release view v1.8.1 --repo "$GITHUB_REPOSITORY" --json tagName,isDraft,assets,url | tee release-result.json
+          jq -e '.tagName == "v1.8.1" and .isDraft == false and ([.assets[].name] | index("CloverRep-1.8.1.jar") != null) and ([.assets[].name] | index("SHA256SUMS") != null)' release-result.json
